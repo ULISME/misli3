@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer <ТВОЙ_DeepSeek_API_KEY>'
+          'Authorization': 'Bearer sk-071487ddbfab4b9fa7bdc606559ce21c'
         }
       }
     );
