@@ -1,64 +1,65 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Метод не разрешён" });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const body = await new Promise((resolve, reject) => {
-      let data = "";
-      req.on("data", chunk => data += chunk);
-      req.on("end", () => resolve(JSON.parse(data)));
-      req.on("error", err => reject(err));
-    });
+    const { thoughts } = req.body;
 
-    const { thoughts } = body;
-    if (!thoughts || !thoughts.length) {
-      return res.status(400).json({ error: "Нет мыслей для анализа" });
+    if (!thoughts || !Array.isArray(thoughts)) {
+      return res.status(400).json({ error: "Неверный формат thoughts" });
     }
 
-    const userInput = thoughts.join("\n");
+    const apiKey = process.env.OPENROUTER_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "OPENROUTER_API_KEY не найден" });
+    }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "Authorization": "Bearer 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"
+        "HTTP-Referer": "https://misli3-psi.vercel.app",
+        "X-Title": "misli"
       },
       body: JSON.stringify({
         model: "deepseek/deepseek-chat",
         messages: [
           {
             role: "system",
-            content: "Ты — психолог. Анализируешь мысли пользователей без советов и оценок, выявляешь паттерны и повторяющиеся темы. Текст — быстрые ситуативные мысли из разных моментов дня."
+            content: "Ты анализируешь мысли человека, выделяешь ключевые темы, эмоции и паттерны."
           },
           {
             role: "user",
-            content: userInput
+            content: thoughts.join("\n")
           }
         ],
-        temperature: 0.2,
-        max_tokens: 500
+        temperature: 0.4
       })
     });
 
-    const dataResponse = await response.json();
+    const data = await response.json();
 
-    // Проверка статуса OpenRouter
     if (!response.ok) {
-      console.error("OpenRouter error:", dataResponse);
-      return res.status(500).json({ error: "OpenRouter вернул ошибку", details: dataResponse });
+      return res.status(response.status).json({
+        error: "OpenRouter вернул ошибку",
+        details: data
+      });
     }
 
-    const analysisText = dataResponse?.choices?.[0]?.message?.content;
-    if (!analysisText) {
-      console.error("Неверный формат ответа OpenRouter:", dataResponse);
-      return res.status(500).json({ error: "Не удалось получить анализ", details: dataResponse });
+    const analysis = data.choices?.[0]?.message?.content;
+
+    if (!analysis) {
+      return res.status(500).json({ error: "Пустой ответ от модели" });
     }
 
-    res.status(200).json({ analysis: analysisText });
-
+    return res.status(200).json({ analysis });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Ошибка сервера", details: err.message });
+    return res.status(500).json({
+      error: "Не удалось получить анализ",
+      details: err.message
+    });
   }
 }
