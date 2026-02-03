@@ -1,12 +1,17 @@
-import fetch from "node-fetch";
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Метод не разрешён" });
   }
 
   try {
-    const { thoughts } = req.body; // массив мыслей
+    const body = await new Promise((resolve, reject) => {
+      let data = "";
+      req.on("data", chunk => data += chunk);
+      req.on("end", () => resolve(JSON.parse(data)));
+      req.on("error", err => reject(err));
+    });
+
+    const { thoughts } = body;
     if (!thoughts || !thoughts.length) {
       return res.status(400).json({ error: "Нет мыслей для анализа" });
     }
@@ -36,13 +41,13 @@ export default async function handler(req, res) {
       })
     });
 
-    const data = await response.json();
+    const dataResponse = await response.json();
 
-    if (!data.choices || !data.choices[0].message) {
+    if (!dataResponse.choices || !dataResponse.choices[0].message) {
       return res.status(500).json({ error: "Не удалось получить анализ" });
     }
 
-    res.status(200).json({ analysis: data.choices[0].message.content });
+    res.status(200).json({ analysis: dataResponse.choices[0].message.content });
 
   } catch (err) {
     console.error(err);
