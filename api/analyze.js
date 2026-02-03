@@ -43,14 +43,22 @@ export default async function handler(req, res) {
 
     const dataResponse = await response.json();
 
-    if (!dataResponse.choices || !dataResponse.choices[0].message) {
-      return res.status(500).json({ error: "Не удалось получить анализ" });
+    // Проверка статуса OpenRouter
+    if (!response.ok) {
+      console.error("OpenRouter error:", dataResponse);
+      return res.status(500).json({ error: "OpenRouter вернул ошибку", details: dataResponse });
     }
 
-    res.status(200).json({ analysis: dataResponse.choices[0].message.content });
+    const analysisText = dataResponse?.choices?.[0]?.message?.content;
+    if (!analysisText) {
+      console.error("Неверный формат ответа OpenRouter:", dataResponse);
+      return res.status(500).json({ error: "Не удалось получить анализ", details: dataResponse });
+    }
+
+    res.status(200).json({ analysis: analysisText });
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Ошибка сервера" });
+    res.status(500).json({ error: "Ошибка сервера", details: err.message });
   }
 }
