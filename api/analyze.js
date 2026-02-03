@@ -1,40 +1,51 @@
-import axios from 'axios';
+import fetch from "node-fetch";
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const { thoughts } = req.body;
-  if (!thoughts) return res.status(400).json({ error: 'No thoughts provided' });
-
-  const PROMPT = `Ты — квалифицированный психолог и аналитик мыслей. 
-Проводишь холодный анализ мыслей без советов и личных привязок. 
-Выводишь повторяющиеся паттерны и зацикленности. 
-Учти, что мысли пользователя пишутся в случайный момент дня и являются быстрыми, ситуативными.`;
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Метод не разрешён" });
+  }
 
   try {
-    const response = await axios.post(
-      'https://api.deepseek.com/v1/chat/completions',
-      {
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: PROMPT },
-          { role: 'user', content: thoughts }
-        ],
-        max_tokens: 500,
-        temperature: 0.3
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer sk-071487ddbfab4b9fa7bdc606559ce21c'
-        }
-      }
-    );
+    const { thoughts } = req.body; // массив мыслей
+    if (!thoughts || !thoughts.length) {
+      return res.status(400).json({ error: "Нет мыслей для анализа" });
+    }
 
-    const analysis = response.data.choices?.[0]?.message?.content || 'Нет данных для анализа';
-    res.status(200).json({ analysis });
-  } catch (e) {
-    console.log('Ошибка DeepSeek:', e.response?.data || e.message);
-    res.status(500).json({ error: 'Не удалось выполнить анализ' });
+    const userInput = thoughts.join("\n");
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer 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"
+      },
+      body: JSON.stringify({
+        model: "deepseek/deepseek-chat",
+        messages: [
+          {
+            role: "system",
+            content: "Ты — психолог. Анализируешь мысли пользователей без советов и оценок, выявляешь паттерны и повторяющиеся темы. Текст — быстрые ситуативные мысли из разных моментов дня."
+          },
+          {
+            role: "user",
+            content: userInput
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 500
+      })
+    });
+
+    const data = await response.json();
+
+    if (!data.choices || !data.choices[0].message) {
+      return res.status(500).json({ error: "Не удалось получить анализ" });
+    }
+
+    res.status(200).json({ analysis: data.choices[0].message.content });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 }
